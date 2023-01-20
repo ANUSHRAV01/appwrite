@@ -5,7 +5,6 @@ use Appwrite\Event\Audit;
 use Appwrite\Event\Database as EventDatabase;
 use Appwrite\Event\Delete;
 use Appwrite\Event\Event;
-use Appwrite\Event\Mail;
 use Appwrite\Extend\Exception;
 use Appwrite\Messaging\Adapter\Realtime;
 use Appwrite\Usage\Stats;
@@ -16,7 +15,6 @@ use Utopia\Abuse\Abuse;
 use Utopia\Abuse\Adapters\TimeLimit;
 use Utopia\Cache\Adapter\Filesystem;
 use Utopia\Cache\Cache;
-use Utopia\CLI\Console;
 use Utopia\Database\Database;
 use Utopia\Database\DateTime;
 use Utopia\Database\Document;
@@ -110,6 +108,18 @@ App::init()
         if ($project->isEmpty() && $route->getLabel('abuse-limit', 0) > 0) { // Abuse limit requires an active project scope
             throw new Exception(Exception::PROJECT_UNKNOWN);
         }
+
+        // Validate x-appwrite-timestamp header
+        $timestampHeader = $request->getHeader('x-appwrite-timestamp');
+        $requestTimestamp = null;
+        if (!empty($timestampHeader)) {
+            try {
+                $requestTimestamp = new \DateTime($timestampHeader);
+            } catch (\Throwable $e) {
+                throw new Exception(Exception::GENERAL_ARGUMENT_INVALID, 'Invalid X-Appwrite-Timestamp header value');
+            }
+        }
+        App::setResource('requestTimestamp', fn() => $requestTimestamp);
 
         /*
         * Abuse Check

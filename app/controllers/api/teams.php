@@ -20,7 +20,6 @@ use Appwrite\Utopia\Response;
 use MaxMind\Db\Reader;
 use Utopia\App;
 use Utopia\Audit\Audit;
-use Utopia\CLI\Console;
 use Utopia\Config\Config;
 use Utopia\Database\Database;
 use Utopia\Database\Document;
@@ -36,9 +35,7 @@ use Utopia\Database\Validator\Key;
 use Utopia\Database\Validator\UID;
 use Utopia\Locale\Locale;
 use Utopia\Validator\Text;
-use Utopia\Validator\Range;
 use Utopia\Validator\ArrayList;
-use Utopia\Validator\WhiteList;
 
 App::post('/v1/teams')
     ->desc('Create Team')
@@ -217,10 +214,11 @@ App::put('/v1/teams/:teamId')
     ->label('sdk.offline.key', '{teamId}')
     ->param('teamId', '', new UID(), 'Team ID.')
     ->param('name', null, new Text(128), 'New team name. Max length: 128 chars.')
+    ->inject('requestTimestamp')
     ->inject('response')
     ->inject('dbForProject')
     ->inject('events')
-    ->action(function (string $teamId, string $name, Response $response, Database $dbForProject, Event $events) {
+    ->action(function (string $teamId, string $name, ?\DateTime $requestTimestamp, Response $response, Database $dbForProject, Event $events) {
 
         $team = $dbForProject->getDocument('teams', $teamId);
 
@@ -228,9 +226,13 @@ App::put('/v1/teams/:teamId')
             throw new Exception(Exception::TEAM_NOT_FOUND);
         }
 
-        $team = $dbForProject->updateDocument('teams', $team->getId(), $team
+        $team
             ->setAttribute('name', $name)
-            ->setAttribute('search', implode(' ', [$teamId, $name])));
+            ->setAttribute('search', implode(' ', [$teamId, $name]));
+
+        $team = $dbForProject->withRequestTimestamp($requestTimestamp, function () use ($dbForProject, $team) {
+            return $dbForProject->updateDocument('teams', $team->getId(), $team);
+        });
 
         $events->setParam('teamId', $team->getId());
 
